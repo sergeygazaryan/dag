@@ -32,7 +32,6 @@ run_notebook_task = KubernetesPodOperator(
     ],
     name="notebook-execution",
     task_id="execute-notebook",
-    get_logs=True,
     is_delete_operator_pod=False,
     in_cluster=True,
     get_logs=True,
