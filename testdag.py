@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
-    'start_date': datetime(2024, 1, 1),
+    'start_date': datetime(2021, 1, 1),
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
@@ -13,19 +13,25 @@ default_args = {
 }
 
 dag = DAG(
-    'run_spark_notebook',
+    'simple_notebook_execution',
     default_args=default_args,
-    description='Run a Spark Jupyter Notebook',
+    description='Simple DAG to run a Jupyter notebook from Git',
     schedule_interval=timedelta(days=1),
     catchup=False,
 )
 
-run_notebook = KubernetesPodOperator(
+run_notebook_task = KubernetesPodOperator(
     namespace='default',
-    image='test_worker_image:latest', # Make sure this image has Papermill, pyspark, etc.
-    cmds=["papermill", "https://github.com/sergeygazaryan/notebook/test.ipynb", "https://github.com/sergeygazaryan/notebook/output.ipynb"],
-    name="run-spark-notebook",
-    task_id="notebook_task",
+    image='test_worker_image:latest',  # Ensure this image has git, papermill, and necessary dependencies installed
+    cmds=["/bin/bash", "-c"],
+    arguments=[
+        """
+        git clone https://github.com/sergeygazaryan/notebook.git /tmp/workspace && \
+        papermill /tmp/workspace/test.ipynb /tmp/workspace/test-output.ipynb
+        """
+    ],
+    name="notebook-execution",
+    task_id="execute-notebook",
     get_logs=True,
     dag=dag,
 )
