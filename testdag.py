@@ -22,7 +22,7 @@ dag = DAG(
 
 run_notebook = KubernetesPodOperator(
     namespace='default',
-    image='your-custom-image:latest', # Make sure this image has Papermill, pyspark, etc.
+    image='test_worker_image:latest', # Make sure this image has Papermill, pyspark, etc.
     cmds=["papermill", "https://github.com/sergeygazaryan/notebook/test.ipynb", "https://github.com/sergeygazaryan/notebook/output.ipynb"],
     name="run-spark-notebook",
     task_id="notebook_task",
