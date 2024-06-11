@@ -21,7 +21,7 @@ dag = DAG(
 )
 
 run_notebook_task = KubernetesPodOperator(
-    namespace='default',
+    namespace='airflow',
     image='test_worker_image:latest',  # Ensure this image has git, papermill, and necessary dependencies installed
     image_pull_policy='IfNotPresent',
     cmds=["/bin/bash", "-c"],
