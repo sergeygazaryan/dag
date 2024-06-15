@@ -45,7 +45,7 @@ run_notebook_task = KubernetesPodOperator(
     in_cluster=True,
     get_logs=True,
     dag=dag,
-    startup_timeout_seconds=300
+    startup_timeout_seconds=600
 )
 
 xcom_push_task = PythonOperator(
