@@ -22,7 +22,7 @@ dag = DAG(
 
 run_notebook_task = KubernetesPodOperator(
     namespace='airflow',
-    image='test_worker_image:latest',  # Ensure this image has git, papermill, and necessary dependencies installed
+    image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:latest',  # Ensure this image has git, papermill, and necessary dependencies installed
     image_pull_policy='IfNotPresent',
     cmds=["/bin/bash", "-c"],
     arguments=[
