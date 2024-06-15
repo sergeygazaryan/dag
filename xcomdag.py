@@ -32,7 +32,7 @@ def push_xcom(**context):
 
 run_notebook_task = KubernetesPodOperator(
     namespace='airflow',
-    image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:newtag',
+    image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:v1.0.0',
     image_pull_policy='IfNotPresent',
     cmds=["papermill"],
     arguments=[
