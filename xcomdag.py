@@ -1,5 +1,7 @@
 from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+from airflow.operators.python_operator import PythonOperator
+from airflow.utils.dates import days_ago
 from datetime import datetime, timedelta
 
 default_args = {
@@ -20,28 +22,22 @@ dag = DAG(
     catchup=False,
 )
 
+def push_xcom(**context):
+    num_elements = context['ti'].xcom_pull(task_ids='run_notebook_task', key='num_elements')
+    word_counts = context['ti'].xcom_pull(task_ids='run_notebook_task', key='word_counts')
+    # You can push these values to another task or external system if needed
+    # For example, save to a database or push to an API
+    # In this example, we will simply log them
+    logging.info(f"Pushed to XCom: num_elements={num_elements}, word_counts={word_counts}")
+
 run_notebook_task = KubernetesPodOperator(
     namespace='airflow',
-    image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:v1.0.0',  # Use the new image tag
-    image_pull_policy='IfNotPresent',  # Or 'Always' if you want to always pull the latest version
-    cmds=["/bin/bash", "-c"],
+    image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:newtag',
+    image_pull_policy='Always',
+    cmds=["papermill"],
     arguments=[
-        """
-        set -e
-        echo "Starting the task..."
-        git clone https://github.com/sergeygazaryan/notebook.git /tmp/workspace
-        echo "Repository cloned. Running papermill..."
-        if papermill /tmp/workspace/xcom_output.ipynb /tmp/workspace/test-output.ipynb > /tmp/workspace/output.log 2>&1; then
-          echo "Papermill execution finished. Output log:"
-          cat /tmp/workspace/output.log
-          echo "Papermill notebook output:"
-          cat /tmp/workspace/test-output.ipynb
-        else
-          echo "Papermill execution failed. Check output log:" >&2
-          cat /tmp/workspace/output.log >&2
-          exit 1
-        fi
-        """
+        "/tmp/workspace/xcom_output.ipynb",
+        "/tmp/workspace/test-output.ipynb"
     ],
     name="run-notebook-task",
     task_id="run_notebook_task",
@@ -52,4 +48,11 @@ run_notebook_task = KubernetesPodOperator(
     startup_timeout_seconds=300
 )
 
-run_notebook_task
+xcom_push_task = PythonOperator(
+    task_id='push_xcom_task',
+    python_callable=push_xcom,
+    provide_context=True,
+    dag=dag,
+)
+
+run_notebook_task >> xcom_push_task
