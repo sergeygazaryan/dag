@@ -45,7 +45,7 @@ upload_notebook_to_gcs = LocalFilesystemToGCSOperator(
     task_id='upload_notebook_to_gcs',
     src='/tmp/workspace/test-output.ipynb',
     dst='notebooks/test-output.ipynb',
-    bucket_name='intent_db_to_ch',
+    bucket='intent_db_to_ch',
     gcp_conn_id='google_cloud_default',  # Reference to the configured GCS connection
     dag=dag,
 )
