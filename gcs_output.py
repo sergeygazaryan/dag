@@ -14,7 +14,7 @@ default_args = {
 }
 
 dag = DAG(
-    'simple_notebook_execution',
+    'upload_notebook_to_gcs',
     default_args=default_args,
     description='Output notebook to GCS',
     schedule_interval=None,  # Disable automatic scheduling
