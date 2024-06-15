@@ -14,7 +14,7 @@ default_args = {
 
 dag = DAG(
     'xcom_dag_output',
-     default_args=default_args,
+    default_args=default_args,
     description='Output notebook to GCS',
     schedule_interval=None,  # Disable automatic scheduling
     catchup=False,
@@ -28,9 +28,13 @@ run_notebook_task = KubernetesPodOperator(
     arguments=[
         """
         set -e
+        echo "Starting the task..."
         git clone https://github.com/sergeygazaryan/notebook.git /tmp/workspace
+        echo "Repository cloned. Running papermill..."
         papermill /tmp/workspace/xcom_output.ipynb /tmp/workspace/test-output.ipynb > /tmp/workspace/output.log 2>&1
+        echo "Papermill execution finished. Output log:"
         cat /tmp/workspace/output.log
+        echo "Papermill notebook output:"
         cat /tmp/workspace/test-output.ipynb
         """
     ],
@@ -42,3 +46,5 @@ run_notebook_task = KubernetesPodOperator(
     dag=dag,
     startup_timeout_seconds=300
 )
+
+run_notebook_task
