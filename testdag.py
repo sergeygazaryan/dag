@@ -27,8 +27,11 @@ run_notebook_task = KubernetesPodOperator(
     cmds=["/bin/bash", "-c"],
     arguments=[
         """
-        git clone https://github.com/sergeygazaryan/notebook.git /tmp/workspace && \
-        papermill /tmp/workspace/pyspark_logging_example.ipynb /tmp/workspace/test-output.ipynb
+        set -e
+        git clone https://github.com/sergeygazaryan/notebook.git /tmp/workspace
+        papermill /tmp/workspace/pyspark_logging_example.ipynb /tmp/workspace/test-output.ipynb > /tmp/workspace/output.log 2>&1
+        cat /tmp/workspace/output.log
+        cat /tmp/workspace/test-output.ipynb
         """
     ],
     name="notebook-execution",
@@ -39,3 +42,4 @@ run_notebook_task = KubernetesPodOperator(
     dag=dag,
     startup_timeout_seconds=300
 )
+
