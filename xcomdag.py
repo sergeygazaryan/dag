@@ -34,18 +34,23 @@ run_notebook_task = KubernetesPodOperator(
     namespace='airflow',
     image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:v1.0.0',
     image_pull_policy='IfNotPresent',
-    cmds=["papermill"],
+    cmds=["/bin/bash", "-c"],
     arguments=[
-        "/tmp/workspace/xcom_output.ipynb",
-        "/tmp/workspace/test-output.ipynb"
+        """
+        set -e
+        git clone https://github.com/sergeygazaryan/notebook.git /tmp/workspace
+        papermill /tmp/workspace/xcom_output.ipynb /tmp/workspace/test-output.ipynb > /tmp/workspace/output.log 2>&1
+        cat /tmp/workspace/output.log
+        cat /tmp/workspace/test-output.ipynb
+        """
     ],
-    name="run-notebook-task",
-    task_id="run_notebook_task",
+    name="notebook-execution",
+    task_id="execute-notebook",
     is_delete_operator_pod=False,
     in_cluster=True,
     get_logs=True,
     dag=dag,
-    startup_timeout_seconds=600
+    startup_timeout_seconds=300
 )
 
 xcom_push_task = PythonOperator(
