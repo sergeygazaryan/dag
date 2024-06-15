@@ -38,8 +38,8 @@ run_notebook_task = KubernetesPodOperator(
         cat /tmp/workspace/test-output.ipynb
         """
     ],
-    name="notebook-execution",
-    task_id="xcom_dag_output",
+    name="run-notebook-task",
+    task_id="run_notebook_task",
     is_delete_operator_pod=False,
     in_cluster=True,
     get_logs=True,
