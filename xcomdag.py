@@ -22,8 +22,8 @@ dag = DAG(
 
 run_notebook_task = KubernetesPodOperator(
     namespace='airflow',
-    image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:latest',  # Ensure this image has git, papermill, and necessary dependencies installed
-    image_pull_policy='Always',
+    image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:v1.0.0',  # Use the new image tag
+    image_pull_policy='IfNotPresent',  # Or 'Always' if you want to always pull the latest version
     cmds=["/bin/bash", "-c"],
     arguments=[
         """
@@ -31,11 +31,16 @@ run_notebook_task = KubernetesPodOperator(
         echo "Starting the task..."
         git clone https://github.com/sergeygazaryan/notebook.git /tmp/workspace
         echo "Repository cloned. Running papermill..."
-        papermill /tmp/workspace/xcom_output.ipynb /tmp/workspace/test-output.ipynb > /tmp/workspace/output.log 2>&1
-        echo "Papermill execution finished. Output log:"
-        cat /tmp/workspace/output.log
-        echo "Papermill notebook output:"
-        cat /tmp/workspace/test-output.ipynb
+        if papermill /tmp/workspace/xcom_output.ipynb /tmp/workspace/test-output.ipynb > /tmp/workspace/output.log 2>&1; then
+          echo "Papermill execution finished. Output log:"
+          cat /tmp/workspace/output.log
+          echo "Papermill notebook output:"
+          cat /tmp/workspace/test-output.ipynb
+        else
+          echo "Papermill execution failed. Check output log:" >&2
+          cat /tmp/workspace/output.log >&2
+          exit 1
+        fi
         """
     ],
     name="run-notebook-task",
