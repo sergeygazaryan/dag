@@ -28,7 +28,7 @@ run_notebook_task = KubernetesPodOperator(
     arguments=[
         """
         git clone https://github.com/sergeygazaryan/notebook.git /tmp/workspace && \
-        papermill /tmp/workspace/test.ipynb /tmp/workspace/test-output.ipynb
+        papermill /tmp/workspace/pyspark_logging_example.ipynb /tmp/workspace/test-output.ipynb
         """
     ],
     name="notebook-execution",
