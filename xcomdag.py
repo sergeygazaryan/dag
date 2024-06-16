@@ -15,42 +15,73 @@ default_args = {
 dag = DAG(
     'xcom_dag_output',
     default_args=default_args,
-    description='A simple tutorial DAG',
+    description='A DAG to execute a Jupyter notebook and push output to XCom',
     schedule_interval=timedelta(days=1),
 )
 
+# Bash command to clone repo, run notebook, extract results, and push to XCom
 bash_command = """
 set -e
-echo "Cloning the repository..."
-timeout 300 git clone https://github.com/sergeygazaryan/notebook.git /tmp/workspace || { echo "Git clone failed!"; exit 1; }
-echo "Repository cloned. Listing contents..."
-ls -la /tmp/workspace
-echo "Running papermill..."
-papermill /tmp/workspace/xcom_output.ipynb /tmp/workspace/test-output.ipynb > /tmp/workspace/output.log 2>&1 || { echo "Papermill execution failed!"; cat /tmp/workspace/output.log; exit 1; }
-echo "Papermill executed successfully. Listing contents of /tmp/workspace..."
-ls -la /tmp/workspace
-echo "Contents of output.log:"
-cat /tmp/workspace/output.log
-echo "Contents of test-output.ipynb:"
-cat /tmp/workspace/test-output.ipynb
+REPO_URL="https://github.com/sergeygazaryan/notebook.git"
+WORKSPACE="/tmp/workspace"
+OUTPUT_LOG="$WORKSPACE/output.log"
+OUTPUT_NOTEBOOK="$WORKSPACE/test-output.ipynb"
+XCOM_FILE="/tmp/workspace/return.json"
 
-# Extracting results to return.json
-jq '.cells[-1].outputs[0].data["application/json"]' /tmp/workspace/test-output.ipynb > /tmp/workspace/return.json
+echo "Cloning the repository..."
+timeout 300 git clone $REPO_URL $WORKSPACE || { echo "Git clone failed!"; exit 1; }
+echo "Repository cloned. Listing contents..."
+ls -la $WORKSPACE
+echo "Running papermill..."
+papermill $WORKSPACE/xcom_output.ipynb $OUTPUT_NOTEBOOK > $OUTPUT_LOG 2>&1 || { echo "Papermill execution failed!"; cat $OUTPUT_LOG; exit 1; }
+echo "Papermill executed successfully. Listing contents of workspace..."
+ls -la $WORKSPACE
+echo "Contents of output.log:"
+cat $OUTPUT_LOG
+echo "Contents of test-output.ipynb:"
+cat $OUTPUT_NOTEBOOK
+
+# Extracting results to return.json using Python
+echo "Extracting results to return.json using Python..."
+python3 << EOF
+import json
+
+with open('$OUTPUT_NOTEBOOK', 'r') as f:
+    notebook = json.load(f)
+
+output = None
+for cell in notebook.get('cells', []):
+    if 'outputs' in cell and cell['outputs']:
+        for out in cell['outputs']:
+            if 'data' in out and 'application/json' in out['data']:
+                output = out['data']['application/json']
+                break
+    if output:
+        break
+
+if output:
+    with open('$XCOM_FILE', 'w') as f:
+        json.dump(output, f)
+else:
+    print("Error: No JSON output found in the notebook.")
+    exit(1)
+EOF
+
 echo "Results extracted to return.json:"
-cat /tmp/workspace/return.json
+cat $XCOM_FILE
 
 # Push XCom result
-if [ -f /tmp/workspace/return.json ]; then
-  xcom_data=$(cat /tmp/workspace/return.json)
+if [ -f $XCOM_FILE ]; then
+  xcom_data=$(cat $XCOM_FILE)
   echo "Pushing to XCom"
-  echo $xcom_data
   echo $xcom_data > /airflow/xcom/return.json
 else
-  echo "Error: XCom file /tmp/workspace/return.json not found."
+  echo "Error: XCom file $XCOM_FILE not found."
   exit 1
 fi
 """
 
+# Task to execute the notebook
 execute_notebook = KubernetesPodOperator(
     namespace='airflow',
     image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:v1.0.0',
