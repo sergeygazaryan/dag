@@ -13,7 +13,7 @@ default_args = {
 with DAG(
     'xcom_dag_output',
     default_args=default_args,
-    description='A simple DAG to run a Jupyter notebook and push results to XCom',
+    description='DAG xcom',
     schedule_interval=None,
     start_date=days_ago(1),
     catchup=False,
@@ -76,7 +76,7 @@ with DAG(
         ],
         get_logs=True,
         in_cluster=True,
-        is_delete_operator_pod=True,
+        is_delete_operator_pod=False,
     )
 
     execute_notebook
