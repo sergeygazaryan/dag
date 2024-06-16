@@ -49,6 +49,24 @@ with DAG(
             python3 << EOF
 import json
 import nbformat
+from airflow.models import XCom
+from airflow.utils.db import provide_session
+from airflow.utils.dates import days_ago
+from airflow.utils.session import create_session
+from airflow import DAG
+from airflow.operators.dummy import DummyOperator
+
+# Helper function to push XCom
+@provide_session
+def push_xcom(task_id, key, value, execution_date, dag_id, session=None):
+    XCom.set(
+        key=key,
+        value=value,
+        execution_date=execution_date,
+        task_id=task_id,
+        dag_id=dag_id,
+        session=session
+    )
 
 with open("$OUTPUT_NOTEBOOK", "r") as f:
     nb = nbformat.read(f, as_version=4)
@@ -56,9 +74,9 @@ with open("$OUTPUT_NOTEBOOK", "r") as f:
 output = None
 for cell in nb.cells:
     if cell.cell_type == 'code':
-        for output in cell.outputs:
-            if output.output_type == 'stream' and output.name == 'stdout':
-                text = output.text
+        for cell_output in cell.outputs:
+            if cell_output.output_type == 'stream' and cell_output.name == 'stdout':
+                text = cell_output.text
                 if text.startswith("{") and text.endswith("}\\n"):
                     output = json.loads(text)
                     break
@@ -68,20 +86,14 @@ for cell in nb.cells:
 if output:
     with open("$XCOM_FILE", "w") as f:
         json.dump(output, f)
+    print("Pushing results to XCom")
+    push_xcom(task_id='execute-notebook', key='return_value', value=output, execution_date="{{ ts }}", dag_id='xcom_dag_output')
 else:
     print("Error: No JSON output found in the notebook.")
     exit(1)
 EOF
             echo "Results extracted to return.json:"
             cat $XCOM_FILE
-            if [ -f $XCOM_FILE ]; then
-              xcom_data=$(cat $XCOM_FILE)
-              echo "Pushing to XCom"
-              airflow xcom push --task_id execute-notebook --key return_value --value "$xcom_data"
-            else
-              echo "Error: XCom file $XCOM_FILE not found."
-              exit 1
-            fi
             """
         ],
         get_logs=True,
