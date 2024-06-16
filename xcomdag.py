@@ -55,6 +55,7 @@ from airflow.utils.dates import days_ago
 from airflow.utils.session import create_session
 from airflow import DAG
 from airflow.operators.dummy import DummyOperator
+from datetime import datetime
 
 # Helper function to push XCom
 @provide_session
@@ -87,7 +88,8 @@ if output:
     with open("$XCOM_FILE", "w") as f:
         json.dump(output, f)
     print("Pushing results to XCom")
-    push_xcom(task_id='execute-notebook', key='return_value', value=output, execution_date="{{ ts }}", dag_id='xcom_dag_output')
+    execution_date = datetime.strptime("{{ ts }}", "%Y-%m-%dT%H:%M:%S.%f%z")
+    push_xcom(task_id='execute-notebook', key='return_value', value=output, execution_date=execution_date, dag_id='xcom_dag_output')
 else:
     print("Error: No JSON output found in the notebook.")
     exit(1)
