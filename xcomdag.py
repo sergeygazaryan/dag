@@ -4,11 +4,10 @@ from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperato
 from datetime import datetime, timedelta
 import os
 import json
-import tempfile
 
 def push_xcom_from_file(**kwargs):
     ti = kwargs['ti']
-    xcom_file = os.path.join(tempfile.gettempdir(), 'return.json')
+    xcom_file = '/tmp/workspace/return.json'  # Ensure this path matches where the notebook writes the file
     if os.path.exists(xcom_file):
         with open(xcom_file, 'r') as f:
             xcom_data = json.load(f)
@@ -57,6 +56,7 @@ execute_notebook = KubernetesPodOperator(
     name="notebook-execution",
     task_id="execute-notebook",
     get_logs=True,
+    is_delete_operator_pod=False,  # Do not delete the pod so we can access logs if needed
     dag=dag,
 )
 
