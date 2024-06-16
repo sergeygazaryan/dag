@@ -11,7 +11,7 @@ default_args = {
 }
 
 with DAG(
-    'xcom_dag_output',
+    'env_output',
     default_args=default_args,
     description='DAG to execute notebook and push to XCom',
     schedule_interval=None,
