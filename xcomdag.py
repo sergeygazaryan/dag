@@ -1,8 +1,8 @@
 from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.utils.dates import days_ago
-from datetime import datetime
-import pytz
+from airflow.utils.task_group import TaskGroup
+from airflow.operators.dummy import DummyOperator
 
 default_args = {
     'owner': 'airflow',
@@ -15,40 +15,45 @@ default_args = {
 with DAG(
     'xcom_dag_output',
     default_args=default_args,
-    description='DAG xcom',
+    description='DAG to execute notebook and push to XCom',
     schedule_interval=None,
     start_date=days_ago(1),
     catchup=False,
 ) as dag:
+    
+    start = DummyOperator(
+        task_id='start'
+    )
 
-    execute_notebook = KubernetesPodOperator(
-        task_id='execute-notebook',
-        name='execute-notebook',
-        namespace='airflow',
-        image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:v1.0.0',
-        cmds=['/bin/bash', '-c'],
-        arguments=[
-            """
-            set -e
-            REPO_URL="https://github.com/sergeygazaryan/notebook.git"
-            WORKSPACE="/tmp/workspace"
-            OUTPUT_LOG="$WORKSPACE/output.log"
-            OUTPUT_NOTEBOOK="$WORKSPACE/test-output.ipynb"
-            XCOM_FILE="/tmp/workspace/return.json"
-            echo "Cloning the repository..."
-            timeout 300 git clone $REPO_URL $WORKSPACE || { echo "Git clone failed!"; exit 1; }
-            echo "Repository cloned. Listing contents..."
-            ls -la $WORKSPACE
-            echo "Running papermill..."
-            papermill $WORKSPACE/xcom_output.ipynb $OUTPUT_NOTEBOOK > $OUTPUT_LOG 2>&1 || { echo "Papermill execution failed!"; cat $OUTPUT_LOG; exit 1; }
-            echo "Papermill executed successfully. Listing contents of workspace..."
-            ls -la $WORKSPACE
-            echo "Contents of output.log:"
-            cat $OUTPUT_LOG
-            echo "Contents of test-output.ipynb:"
-            cat $OUTPUT_NOTEBOOK
-            echo "Extracting results from test-output.ipynb using Python..."
-            python3 << EOF
+    with TaskGroup("execute_notebook_group") as execute_notebook_group:
+        execute_notebook = KubernetesPodOperator(
+            task_id='execute-notebook',
+            name='execute-notebook',
+            namespace='airflow',
+            image='sergeygazaryan13/airflow2.1.2-pyspark3.1.2:v1.0.0',
+            cmds=['/bin/bash', '-c'],
+            arguments=[
+                """
+                set -e
+                REPO_URL="https://github.com/sergeygazaryan/notebook.git"
+                WORKSPACE="/tmp/workspace"
+                OUTPUT_LOG="$WORKSPACE/output.log"
+                OUTPUT_NOTEBOOK="$WORKSPACE/test-output.ipynb"
+                XCOM_FILE="/tmp/workspace/return.json"
+                echo "Cloning the repository..."
+                timeout 300 git clone $REPO_URL $WORKSPACE || { echo "Git clone failed!"; exit 1; }
+                echo "Repository cloned. Listing contents..."
+                ls -la $WORKSPACE
+                echo "Running papermill..."
+                papermill $WORKSPACE/xcom_output.ipynb $OUTPUT_NOTEBOOK > $OUTPUT_LOG 2>&1 || { echo "Papermill execution failed!"; cat $OUTPUT_LOG; exit 1; }
+                echo "Papermill executed successfully. Listing contents of workspace..."
+                ls -la $WORKSPACE
+                echo "Contents of output.log:"
+                cat $OUTPUT_LOG
+                echo "Contents of test-output.ipynb:"
+                cat $OUTPUT_NOTEBOOK
+                echo "Extracting results from test-output.ipynb using Python..."
+                python3 << EOF
 import json
 import nbformat
 from airflow.models import XCom
@@ -93,13 +98,13 @@ else:
     print("Error: No JSON output found in the notebook.")
     exit(1)
 EOF
-            echo "Results extracted to return.json:"
-            cat $XCOM_FILE
-            """
-        ],
-        get_logs=True,
-        in_cluster=True,
-        is_delete_operator_pod=False,
-    )
-
-    execute_notebook
+                echo "Results extracted to return.json:"
+                cat $XCOM_FILE
+                """
+            ],
+            get_logs=True,
+            in_cluster=True,
+            is_delete_operator_pod=False,
+        )
+        
+    start >> execute_notebook_group
