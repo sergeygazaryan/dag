@@ -59,7 +59,7 @@ with open('$OUTPUT_LOG', 'r') as f:
 
 output = None
 for line in lines:
-    if line.startswith('{') and line.endswith('}\n'):
+    if line.startswith("{") and line.endswith("}\n"):
         output = json.loads(line)
         break
 
