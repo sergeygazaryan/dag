@@ -1,8 +1,13 @@
 from airflow import DAG
+from airflow.operators.python import PythonOperator
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.utils.dates import days_ago
 from airflow.utils.task_group import TaskGroup
-from airflow.operators.dummy import DummyOperator
+from airflow.models import Variable
+from datetime import datetime
+import json
+import nbformat
+import pytz
 
 default_args = {
     'owner': 'airflow',
@@ -20,10 +25,30 @@ with DAG(
     start_date=days_ago(1),
     catchup=False,
 ) as dag:
-    
-    start = DummyOperator(
-        task_id='start'
-    )
+
+    def parse_notebook_and_push_xcom(**kwargs):
+        # Assuming the output notebook is available at a certain location
+        output_notebook_path = "/tmp/workspace/test-output.ipynb"
+        with open(output_notebook_path, "r") as f:
+            nb = nbformat.read(f, as_version=4)
+        
+        output = None
+        for cell in nb.cells:
+            if cell.cell_type == 'code':
+                for cell_output in cell.outputs:
+                    if cell_output.output_type == 'stream' and cell_output.name == 'stdout':
+                        text = cell_output.text
+                        if text.startswith("{") and text.endswith("}\\n"):
+                            output = json.loads(text)
+                            break
+                if output:
+                    break
+        
+        if output:
+            ti = kwargs['ti']
+            ti.xcom_push(key='parsed_output', value=output)
+        else:
+            raise ValueError("No JSON output found in the notebook.")
 
     with TaskGroup("execute_notebook_group") as execute_notebook_group:
         execute_notebook = KubernetesPodOperator(
@@ -39,7 +64,6 @@ with DAG(
                 WORKSPACE="/tmp/workspace"
                 OUTPUT_LOG="$WORKSPACE/output.log"
                 OUTPUT_NOTEBOOK="$WORKSPACE/test-output.ipynb"
-                XCOM_FILE="/tmp/workspace/return.json"
                 echo "Cloning the repository..."
                 timeout 300 git clone $REPO_URL $WORKSPACE || { echo "Git clone failed!"; exit 1; }
                 echo "Repository cloned. Listing contents..."
@@ -52,59 +76,30 @@ with DAG(
                 cat $OUTPUT_LOG
                 echo "Contents of test-output.ipynb:"
                 cat $OUTPUT_NOTEBOOK
-                echo "Extracting results from test-output.ipynb using Python..."
-                python3 << EOF
-import json
-import nbformat
-from airflow.models import XCom
-from airflow.utils.db import provide_session
-from datetime import datetime
-import pytz
-
-# Helper function to push XCom
-@provide_session
-def push_xcom(task_id, key, value, execution_date, dag_id, session=None):
-    XCom.set(
-        key=key,
-        value=value,
-        execution_date=execution_date,
-        task_id=task_id,
-        dag_id=dag_id,
-        session=session
-    )
-
-with open("$OUTPUT_NOTEBOOK", "r") as f:
-    nb = nbformat.read(f, as_version=4)
-
-output = None
-for cell in nb.cells:
-    if cell.cell_type == 'code':
-        for cell_output in cell.outputs:
-            if cell_output.output_type == 'stream' and cell_output.name == 'stdout':
-                text = cell_output.text
-                if text.startswith("{") and text.endswith("}\\n"):
-                    output = json.loads(text)
-                    break
-        if output:
-            break
-
-if output:
-    with open("$XCOM_FILE", "w") as f:
-        json.dump(output, f)
-    print("Pushing results to XCom")
-    current_time = datetime.now(pytz.utc)  # Use timezone-aware datetime
-    push_xcom(task_id='execute-notebook', key='return_value', value=output, execution_date=current_time, dag_id='xcom_dag_output')
-else:
-    print("Error: No JSON output found in the notebook.")
-    exit(1)
-EOF
-                echo "Results extracted to return.json:"
-                cat $XCOM_FILE
                 """
             ],
             get_logs=True,
             in_cluster=True,
             is_delete_operator_pod=False,
         )
-        
-    start >> execute_notebook_group
+
+        parse_notebook = PythonOperator(
+            task_id='parse-notebook',
+            python_callable=parse_notebook_and_push_xcom,
+            provide_context=True
+        )
+
+    def use_xcom_data(**kwargs):
+        ti = kwargs['ti']
+        parsed_output = ti.xcom_pull(key='parsed_output', task_ids='execute_notebook_group.parse-notebook')
+        # Use the parsed_output for further processing
+        print(f"Parsed Output: {parsed_output}")
+
+    use_data = PythonOperator(
+        task_id='use-data',
+        python_callable=use_xcom_data,
+        provide_context=True,
+        dag=dag,
+    )
+
+    execute_notebook >> parse_notebook >> use_data
