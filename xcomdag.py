@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.utils.dates import days_ago
 from datetime import datetime
+import pytz
 
 default_args = {
     'owner': 'airflow',
@@ -53,6 +54,7 @@ import nbformat
 from airflow.models import XCom
 from airflow.utils.db import provide_session
 from datetime import datetime
+import pytz
 
 # Helper function to push XCom
 @provide_session
@@ -85,7 +87,7 @@ if output:
     with open("$XCOM_FILE", "w") as f:
         json.dump(output, f)
     print("Pushing results to XCom")
-    current_time = datetime.now()  # Use current time
+    current_time = datetime.now(pytz.utc)  # Use timezone-aware datetime
     push_xcom(task_id='execute-notebook', key='return_value', value=output, execution_date=current_time, dag_id='xcom_dag_output')
 else:
     print("Error: No JSON output found in the notebook.")
