@@ -8,7 +8,7 @@ default_args = {
     'start_date': datetime(2024, 6, 15),
     'email_on_failure': False,
     'email_on_retry': False,
-    'retries': 0,
+    'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }
 
@@ -46,24 +46,20 @@ echo "Extracting results to return.json using Python..."
 python3 << EOF
 import json
 
-with open('$OUTPUT_NOTEBOOK', 'r') as f:
-    notebook = json.load(f)
+with open('$OUTPUT_LOG', 'r') as f:
+    lines = f.readlines()
 
 output = None
-for cell in notebook.get('cells', []):
-    if 'outputs' in cell and cell['outputs']:
-        for out in cell['outputs']:
-            if 'text' in out and 'application/json' in out['text']:
-                output = json.loads(out['text'])
-                break
-    if output:
+for line in lines:
+    if line.startswith('{') and line.endswith('}\n'):
+        output = json.loads(line)
         break
 
 if output:
     with open('$XCOM_FILE', 'w') as f:
         json.dump(output, f)
 else:
-    print("Error: No JSON output found in the notebook.")
+    print("Error: No JSON output found in the log.")
     exit(1)
 EOF
 
