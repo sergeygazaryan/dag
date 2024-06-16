@@ -45,21 +45,31 @@ with DAG(
             cat $OUTPUT_LOG
             echo "Contents of test-output.ipynb:"
             cat $OUTPUT_NOTEBOOK
-            echo "Extracting results to return.json using Python..."
+            echo "Extracting results from test-output.ipynb using Python..."
             python3 << EOF
 import json
-with open("$OUTPUT_LOG", "r") as f:
-    lines = f.readlines()
+import nbformat
+
+with open("$OUTPUT_NOTEBOOK", "r") as f:
+    nb = nbformat.read(f, as_version=4)
+
 output = None
-for line in lines:
-    if line.startswith("{") and line.endswith("}\\n"):
-        output = json.loads(line)
-        break
+for cell in nb.cells:
+    if cell.cell_type == 'code':
+        for output in cell.outputs:
+            if output.output_type == 'stream' and output.name == 'stdout':
+                text = output.text
+                if text.startswith("{") and text.endswith("}\\n"):
+                    output = json.loads(text)
+                    break
+        if output:
+            break
+
 if output:
     with open("$XCOM_FILE", "w") as f:
         json.dump(output, f)
 else:
-    print("Error: No JSON output found in the log.")
+    print("Error: No JSON output found in the notebook.")
     exit(1)
 EOF
             echo "Results extracted to return.json:"
