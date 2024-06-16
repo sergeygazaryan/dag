@@ -57,8 +57,7 @@ with DAG(
                 python3 << EOF
 import json
 import nbformat
-from airflow.models import TaskInstance
-from airflow.utils.state import State
+from airflow.models import XCom
 from airflow.utils.dates import days_ago
 from datetime import datetime
 import pytz
@@ -81,13 +80,13 @@ for cell in nb.cells:
 if output:
     print("Pushing results to XCom")
     current_time = datetime.now(pytz.utc)  # Use timezone-aware datetime
-    task_instance = TaskInstance(
-        dag_id='xcom_dag_output',
-        task_id='execute-notebook',
+    XCom.set(
+        key='return_value',
+        value=json.dumps(output),
         execution_date=current_time,
-        state=State.SUCCESS
+        task_id='execute-notebook',
+        dag_id='xcom_dag_output'
     )
-    task_instance.xcom_push(key='return_value', value=json.dumps(output))
 else:
     print("Error: No JSON output found in the notebook.")
     exit(1)
