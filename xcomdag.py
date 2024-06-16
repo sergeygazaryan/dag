@@ -83,14 +83,13 @@ EOF
               echo "Error: XCom file $XCOM_FILE not found."
               exit 1
             fi
-        """,
+        """],
         name="execute-notebook",
         task_id="execute-notebook",
         get_logs=True,
         is_delete_operator_pod=True,
         in_cluster=True,
         config_file=None,
-        dag=dag,
     )
 
     end = DummyOperator(
