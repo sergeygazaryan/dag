@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.utils.dates import days_ago
 from airflow.operators.python import PythonOperator
-import json
 from airflow.utils.task_group import TaskGroup
+import json
 
 default_args = {
     'owner': 'airflow',
@@ -13,12 +13,18 @@ default_args = {
     'retries': 0,
 }
 
-def process_notebook_result(**context):
-    # Pull result from XCom
-    ti = context['ti']
-    output = ti.xcom_pull(task_ids='execute_notebook_group.execute-notebook', key='return_value')
-    # Perform any additional processing here
-    print(f"Processed output: {output}")
+def push_xcom(ti):
+    # Pull result from the execute_notebook task
+    output_str = ti.xcom_pull(task_ids='execute_notebook_group.execute-notebook', key='return_value')
+    if output_str:
+        # Parse the JSON string
+        output = json.loads(output_str)
+        # Push each key-value pair to XCom
+        for key, value in output.items():
+            ti.xcom_push(key=key, value=value)
+            print(f"Pushed {key}: {value} to XCom")
+    else:
+        print("No output found to push to XCom")
 
 with DAG(
     'xcom_dag_output',
@@ -90,10 +96,10 @@ EOF
             is_delete_operator_pod=False,
         )
 
-    process_results = PythonOperator(
-        task_id='process_results',
-        python_callable=process_notebook_result,
+    push_results = PythonOperator(
+        task_id='push_results',
+        python_callable=push_xcom,
         provide_context=True
     )
 
-    execute_notebook_group >> process_results
+    execute_notebook_group >> push_results
