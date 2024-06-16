@@ -15,8 +15,11 @@ default_args = {
 
 def push_xcom(ti):
     # Pull result from the execute_notebook task
-    output_str = ti.xcom_pull(task_ids='execute_notebook_group.execute-notebook')
+    print("Start to get response value")
+    output_str = ti.xcom_pull(task_ids='execute_notebook_group.execute-notebook', key='return_value')
+    print(f"Output - {output_str}")
     if output_str:
+        print("Start parsing JSON")
         # Parse the JSON string
         output = json.loads(output_str)
         # Push each key-value pair to XCom
@@ -27,7 +30,7 @@ def push_xcom(ti):
         print("No output found to push to XCom")
 
 with DAG(
-    'xcom_dag_output-xcomfile',
+    'xcom_dag_output_xcom',
     default_args=default_args,
     description='DAG to execute notebook and push to XCom',
     schedule_interval=None,
@@ -65,7 +68,6 @@ with DAG(
                 python3 << EOF
 import json
 import nbformat
-import os
 
 with open("$OUTPUT_NOTEBOOK", "r") as f:
     nb = nbformat.read(f, as_version=4)
@@ -98,7 +100,6 @@ EOF
             get_logs=True,
             in_cluster=True,
             is_delete_operator_pod=False,
-            do_xcom_push=True,
         )
 
     push_results = PythonOperator(
