@@ -41,7 +41,7 @@ with DAG(
             echo "Repository cloned. Listing contents..."
             ls -la $WORKSPACE
             echo "Running papermill..."
-            papermill $WORKSPACE/env_output.ipynb $OUTPUT_NOTEBOOK > $OUTPUT_LOG 2>&1 || {{ echo "Papermill execution failed!"; cat $OUTPUT_LOG; exit 1; }}
+            papermill $WORKSPACE/xcom_output.ipynb $OUTPUT_NOTEBOOK > $OUTPUT_LOG 2>&1 || {{ echo "Papermill execution failed!"; cat $OUTPUT_LOG; exit 1; }}
             echo "Papermill executed successfully. Listing contents of workspace..."
             ls -la $WORKSPACE
             echo "Contents of output.log:"
