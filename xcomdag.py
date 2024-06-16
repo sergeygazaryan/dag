@@ -88,6 +88,9 @@ if output:
     print("Pushing results to XCom")
     output_str = json.dumps(output)
     print(output_str)
+    # Write output_str to a file so it can be accessed by the KubernetesPodOperator
+    with open("/airflow/xcom/return.json", "w") as xcom_file:
+        xcom_file.write(output_str)
 else:
     print("Error: No JSON output found in the notebook.")
     exit(1)
