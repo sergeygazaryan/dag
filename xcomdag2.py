@@ -1,8 +1,6 @@
 from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.utils.dates import days_ago
-import json
-from datetime import datetime
 
 default_args = {
     'owner': 'airflow',
@@ -12,27 +10,10 @@ default_args = {
     'retries': 0,
 }
 
-def fix_dates_in_output(output):
-    if isinstance(output, dict):
-        for key, value in output.items():
-            if isinstance(value, str) and len(value) > 18 and value[4] == '-' and value[10] == 'T':
-                try:
-                    output[key] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f%z")
-                except ValueError:
-                    try:
-                        output[key] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S%z")
-                    except ValueError:
-                        pass
-            elif isinstance(value, dict):
-                fix_dates_in_output(value)
-            elif isinstance(value, list):
-                for item in value:
-                    fix_dates_in_output(item)
-
 with DAG(
-    'xcom_dag_output_2',
+    'xcom_dag_output',
     default_args=default_args,
-    description='DAG xcom 2',
+    description='DAG xcom',
     schedule_interval=None,
     start_date=days_ago(1),
     catchup=False,
@@ -70,29 +51,13 @@ import json
 import nbformat
 from airflow.models import XCom
 from airflow.utils.db import provide_session
-from airflow.utils.session import create_session
 from datetime import datetime
-
-def fix_dates_in_output(output):
-    if isinstance(output, dict):
-        for key, value in output.items():
-            if isinstance(value, str) and len(value) > 18 and value[4] == '-' and value[10] == 'T':
-                try:
-                    output[key] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f%z")
-                except ValueError:
-                    try:
-                        output[key] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S%z")
-                    except ValueError:
-                        pass
-            elif isinstance(value, dict):
-                fix_dates_in_output(value)
-            elif isinstance(value, list):
-                for item in value:
-                    fix_dates_in_output(item)
 
 # Helper function to push XCom
 @provide_session
 def push_xcom(task_id, key, value, execution_date, dag_id, session=None):
+    # Convert execution_date from string to datetime
+    execution_date = datetime.strptime(execution_date, "%Y-%m-%dT%H:%M:%S.%f%z")
     XCom.set(
         key=key,
         value=value,
@@ -113,7 +78,6 @@ for cell in nb.cells:
                 text = cell_output.text
                 if text.startswith("{") and text.endswith("}\\n"):
                     output = json.loads(text)
-                    fix_dates_in_output(output)
                     break
         if output:
             break
