@@ -1,7 +1,6 @@
 from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from datetime import datetime, timedelta
-import json
 
 default_args = {
     'owner': 'airflow',
@@ -20,7 +19,6 @@ dag = DAG(
     schedule_interval=timedelta(days=1),
 )
 
-# This will be the bash command to run the notebook and push the result to XCom
 bash_command = """
 set -e
 echo "Cloning the repository..."
@@ -41,10 +39,16 @@ jq '.cells[-1].outputs[0].data["application/json"]' /tmp/workspace/test-output.i
 echo "Results extracted to return.json:"
 cat /tmp/workspace/return.json
 
-# Reading return.json and pushing to XCom
-xcom_data=$(cat /tmp/workspace/return.json)
-echo "Pushing to XCom"
-echo $xcom_data
+# Push XCom result
+if [ -f /tmp/workspace/return.json ]; then
+  xcom_data=$(cat /tmp/workspace/return.json)
+  echo "Pushing to XCom"
+  echo $xcom_data
+  echo $xcom_data > /airflow/xcom/return.json
+else
+  echo "Error: XCom file /tmp/workspace/return.json not found."
+  exit 1
+fi
 """
 
 execute_notebook = KubernetesPodOperator(
@@ -55,8 +59,8 @@ execute_notebook = KubernetesPodOperator(
     name="notebook-execution",
     task_id="execute-notebook",
     get_logs=True,
-    is_delete_operator_pod=False,  # Do not delete the pod so we can access logs if needed
-    do_xcom_push=True,  # Enable XCom push
+    is_delete_operator_pod=False,
+    do_xcom_push=True,
     dag=dag,
 )
 
