@@ -30,9 +30,9 @@ def fix_dates_in_output(output):
                     fix_dates_in_output(item)
 
 with DAG(
-    'xcom_dag_output',
+    'xcom_dag_output 2',
     default_args=default_args,
-    description='DAG xcom',
+    description='DAG xcom 2',
     schedule_interval=None,
     start_date=days_ago(1),
     catchup=False,
