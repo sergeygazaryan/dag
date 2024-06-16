@@ -6,7 +6,6 @@ from airflow.models import Variable
 # Retrieve variables from Airflow UI
 KUBERNETES_SERVICE_ACCOUNT = Variable.get("KUBERNETES_SERVICE_ACCOUNT")
 
-
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
@@ -53,28 +52,31 @@ with DAG(
             python3 << EOF
 import json
 import nbformat
-import os
 
+# Read the notebook
 with open("$OUTPUT_NOTEBOOK", "r") as f:
     nb = nbformat.read(f, as_version=4)
 
+# Initialize the output
 output = None
+
+# Look for JSON output in the code cells
 for cell in nb.cells:
     if cell.cell_type == 'code':
         for cell_output in cell.outputs:
             if cell_output.output_type == 'stream' and cell_output.name == 'stdout':
-                text = cell_output.text
-                if text.startswith("{") and text.endswith("}\\n"):
+                text = cell_output.text.strip()
+                if text.startswith("{") and text.endswith("}"):
                     output = json.loads(text)
                     break
         if output:
             break
 
+# Push the result to XCom
 if output:
     print("Pushing results to XCom")
     output_str = json.dumps(output)
     print(output_str)
-    # Write output_str to a file so it can be accessed by the KubernetesPodOperator
     with open("/airflow/xcom/return.json", "w") as xcom_file:
         xcom_file.write(output_str)
 else:
