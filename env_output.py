@@ -1,6 +1,10 @@
 from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.utils.dates import days_ago
+from airflow.models import Variable
+
+# Retrieve variables from Airflow UI
+KUBERNETES_SERVICE_ACCOUNT = Variable.get("KUBERNETES_SERVICE_ACCOUNT")
 
 default_args = {
     'owner': 'airflow',
@@ -81,5 +85,8 @@ EOF
         get_logs=True,
         in_cluster=True,
         is_delete_operator_pod=False,
-        do_xcom_push=True
+        do_xcom_push=True,
+        env_vars={
+            'KUBERNETES_SERVICE_ACCOUNT': KUBERNETES_SERVICE_ACCOUNT
+        }
     )
