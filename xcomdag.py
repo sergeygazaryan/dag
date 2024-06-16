@@ -53,8 +53,8 @@ output = None
 for cell in notebook.get('cells', []):
     if 'outputs' in cell and cell['outputs']:
         for out in cell['outputs']:
-            if 'data' in out and 'application/json' in out['data']:
-                output = out['data']['application/json']
+            if 'text' in out and 'application/json' in out['text']:
+                output = json.loads(out['text'])
                 break
     if output:
         break
