@@ -3,10 +3,6 @@ from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import Kubernete
 from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
 from airflow.utils.task_group import TaskGroup
-from airflow.operators.dummy import DummyOperator
-from airflow.utils.db import provide_session
-from airflow.models import XCom
-from datetime import datetime
 import json
 
 default_args = {
@@ -31,10 +27,6 @@ with DAG(
     catchup=False,
 ) as dag:
 
-    start = DummyOperator(
-        task_id='start'
-    )
-
     with TaskGroup("execute_notebook_group") as execute_notebook_group:
         execute_notebook = KubernetesPodOperator(
             task_id='execute-notebook',
@@ -49,7 +41,6 @@ with DAG(
                 WORKSPACE="/tmp/workspace"
                 OUTPUT_LOG="$WORKSPACE/output.log"
                 OUTPUT_NOTEBOOK="$WORKSPACE/test-output.ipynb"
-                XCOM_FILE="/tmp/workspace/return.json"
                 echo "Cloning the repository..."
                 timeout 300 git clone $REPO_URL $WORKSPACE || { echo "Git clone failed!"; exit 1; }
                 echo "Repository cloned. Listing contents..."
@@ -66,12 +57,11 @@ with DAG(
                 python3 << EOF
 import json
 import nbformat
-from datetime import datetime
-import pytz
 from airflow.models import TaskInstance
 from airflow.utils.state import State
 from airflow.utils.dates import days_ago
-from airflow import DAG
+from datetime import datetime
+import pytz
 
 with open("/tmp/workspace/test-output.ipynb", "r") as f:
     nb = nbformat.read(f, as_version=4)
@@ -91,14 +81,18 @@ for cell in nb.cells:
 if output:
     print("Pushing results to XCom")
     current_time = datetime.now(pytz.utc)  # Use timezone-aware datetime
-    task_instance = TaskInstance(dag_id='xcom_dag_output', task_id='execute-notebook', execution_date=current_time)
+    task_instance = TaskInstance(
+        dag_id='xcom_dag_output',
+        task_id='execute-notebook',
+        execution_date=current_time,
+        state=State.SUCCESS
+    )
     task_instance.xcom_push(key='return_value', value=json.dumps(output))
 else:
     print("Error: No JSON output found in the notebook.")
     exit(1)
 EOF
-                echo "Results extracted to return.json:"
-                cat $XCOM_FILE
+                echo "Results extracted."
                 """
             ],
             get_logs=True,
@@ -110,7 +104,5 @@ EOF
             task_id='parse-results',
             python_callable=extract_results_from_xcom,
         )
-        
-        execute_notebook >> parse_results
 
-    start >> execute_notebook_group
+        execute_notebook >> parse_results
