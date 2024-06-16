@@ -77,7 +77,7 @@ EOF
             if [ -f $XCOM_FILE ]; then
               xcom_data=$(cat $XCOM_FILE)
               echo "Pushing to XCom"
-              echo $xcom_data > /airflow/xcom/return.json
+              airflow xcom push --task_id execute-notebook --key return_value --value "$xcom_data"
             else
               echo "Error: XCom file $XCOM_FILE not found."
               exit 1
