@@ -15,8 +15,11 @@ default_args = {
 
 def push_xcom(ti):
     # Pull result from the execute_notebook task
+    print("Start to get response value")
     output_str = ti.xcom_pull(task_ids='execute_notebook_group.execute-notebook', key='return_value')
+    print(f"Output - {output_str}")
     if output_str:
+        print("Start parsing JSON")
         # Parse the JSON string
         output = json.loads(output_str)
         # Push each key-value pair to XCom
