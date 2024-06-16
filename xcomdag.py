@@ -4,7 +4,6 @@ from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
 from airflow.utils.task_group import TaskGroup
 import json
-import nbformat
 
 default_args = {
     'owner': 'airflow',
@@ -14,30 +13,8 @@ default_args = {
     'retries': 0,
 }
 
-def extract_notebook_output(**context):
-    notebook_path = '/tmp/workspace/test-output.ipynb'
-    with open(notebook_path, 'r') as f:
-        nb = nbformat.read(f, as_version=4)
-
-    output = None
-    for cell in nb.cells:
-        if cell.cell_type == 'code':
-            for cell_output in cell.outputs:
-                if cell_output.output_type == 'stream' and cell_output.name == 'stdout':
-                    text = cell_output.text
-                    if text.startswith("{") and text.endswith("}\n"):
-                        output = json.loads(text)
-                        break
-            if output:
-                break
-
-    if output:
-        context['ti'].xcom_push(key='return_value', value=output)
-    else:
-        raise ValueError("No JSON output found in the notebook.")
-
 def process_xcom_output(**context):
-    output = context['ti'].xcom_pull(task_ids='execute_notebook_group.extract_notebook_output', key='return_value')
+    output = context['ti'].xcom_pull(task_ids='execute_notebook_group.execute_notebook', key='return_value')
     print(f"Pulled Output: {output}")
 
 with DAG(
@@ -75,17 +52,38 @@ with DAG(
                 cat $OUTPUT_LOG
                 echo "Contents of test-output.ipynb:"
                 cat $OUTPUT_NOTEBOOK
+                echo "Extracting results from test-output.ipynb..."
+                output=$(python3 -c "
+import json
+import nbformat
+notebook_path = '$OUTPUT_NOTEBOOK'
+with open(notebook_path, 'r') as f:
+    nb = nbformat.read(f, as_version=4)
+
+parsed_output = None
+for cell in nb.cells:
+    if cell.cell_type == 'code':
+        for cell_output in cell.outputs:
+            if cell_output.output_type == 'stream' and cell_output.name == 'stdout':
+                text = cell_output.text
+                if text.startswith('{') and text.endswith('}\\n'):
+                    parsed_output = json.loads(text)
+                    break
+        if parsed_output:
+            break
+
+if parsed_output:
+    print(json.dumps(parsed_output))
+else:
+    raise ValueError('No JSON output found in the notebook.')
+")
+                echo "Pushing results to XCom"
+                echo $output > /airflow/xcom/return.json
                 """
             ],
             get_logs=True,
             in_cluster=True,
             is_delete_operator_pod=False,
-        )
-
-        extract_notebook_output_task = PythonOperator(
-            task_id='extract_notebook_output',
-            python_callable=extract_notebook_output,
-            provide_context=True,
         )
 
     process_xcom_output_task = PythonOperator(
