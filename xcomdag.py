@@ -100,6 +100,7 @@ EOF
             get_logs=True,
             in_cluster=True,
             is_delete_operator_pod=False,
+            do_xcom_push=True
         )
 
     push_results = PythonOperator(
