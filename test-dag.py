@@ -29,7 +29,7 @@ run_notebook_task = KubernetesPodOperator(
         """
         set -e
         git clone https://github.com/sergeygazaryan/notebook.git /tmp/workspace
-        papermill /tmp/workspace/{filename} /tmp/workspace/test-output.ipynb > /tmp/workspace/output.log 2>&1
+        papermill /tmp/workspace/test.ipynb /tmp/workspace/test-output.ipynb > /tmp/workspace/output.log 2>&1
         cat /tmp/workspace/output.log
         cat /tmp/workspace/test-output.ipynb
         """
