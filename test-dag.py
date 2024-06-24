@@ -15,7 +15,7 @@ dag = DAG(
     'simple_notebook_execution',
     default_args=default_args,
     description='Simple DAG to run a Jupyter notebook from Git',
-    schedule_interval='@once',
+    schedule_interval='None',
     catchup=False,
 )
 
